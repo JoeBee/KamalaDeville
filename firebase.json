@@ -1,10 +1,16 @@
 {
+  "functions": {
+    "source": "functions"
+  },
   "hosting": {
     "site": "kam-dev2",
     "public": ".",
     "ignore": [
       "firebase.json",
       "**/.*",
+      ".env",
+      ".env.local",
+      ".env.*.local",
       "**/node_modules/**",
       "functions/**"
     ]

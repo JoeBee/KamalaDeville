@@ -13,10 +13,11 @@ firebase-debug.*.log*
 # Firebase
 .firebase/
 
-# Environment
+# Environment & secrets
 .env
 .env.local
 .env.*.local
+firebase-config.js
 
 # Build / cache
 dist/
