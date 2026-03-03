@@ -1,0 +1,12 @@
+{
+  "name": "kamala-deville",
+  "version": "1.0.0",
+  "description": "A modern, responsive website for Kamala-Deville.com and KamalaDeville.com",
+  "scripts": {
+    "deploy": "firebase deploy",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

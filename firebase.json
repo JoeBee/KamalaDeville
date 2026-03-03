@@ -1,0 +1,12 @@
+{
+  "hosting": {
+    "site": "kam-dev2",
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**",
+      "functions/**"
+    ]
+  }
+}
