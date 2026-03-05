@@ -4,74 +4,121 @@ const nodemailer = require("nodemailer");
 
 /**
  * Sends an email when a new contact form submission is added to Firestore.
- * Configure SMTP via Firebase config before deploying:
+ * Configure via .env in functions/:
  *
- *   firebase functions:config:set mail.to="your@email.com"
- *   firebase functions:config:set smtp.host="smtp.gmail.com"
- *   firebase functions:config:set smtp.port="587"
- *   firebase functions:config:set smtp.user="your@gmail.com"
- *   firebase functions:config:set smtp.pass="your-app-password"
+ *   MAIL_TO=your@email.com
+ *   SMTP_HOST=smtp.gmail.com
+ *   SMTP_PORT=587
+ *   SMTP_USER=your@gmail.com
+ *
+ * For SMTP_PASS (App Password), use:
+ *   firebase functions:secrets:set SMTP_PASS
  *
  * For Gmail: Use an App Password (not your regular password).
  * Create one at: https://myaccount.google.com/apppasswords
  */
-exports.sendContactEmail = onDocumentCreated("contactMessages/{docId}", async (event) => {
-  const snap = event.data;
-  if (!snap) {
-    logger.warn("No data in event");
-    return null;
-  }
+exports.sendContactEmail = onDocumentCreated(
+  "contactMessages/{docId}",
+  async (event) => {
+    logger.info("sendContactEmail triggered", {
+      docId: event.params?.docId,
+    });
 
-  const data = snap.data();
-  const { name = "", email = "", message = "" } = data;
+    const snap = event.data;
+    if (!snap) {
+      logger.warn("No data in event");
+      return null;
+    }
 
-  const functions = require("firebase-functions");
-  const cfg = functions.config();
-  const to = cfg.mail?.to;
-  const host = cfg.smtp?.host || "smtp.gmail.com";
-  const port = parseInt(cfg.smtp?.port || "587", 10);
-  const user = cfg.smtp?.user;
-  const pass = cfg.smtp?.pass;
+    const data = snap.data();
+    const { name = "", email = "", message = "" } = data;
 
-  if (!to || !user || !pass) {
-    logger.error("Email not configured. Set mail.to, smtp.user, and smtp.pass via firebase functions:config:set");
-    return null;
-  }
+    logger.info("Contact form payload received", {
+      name,
+      email,
+      messageLength: message ? String(message).length : 0,
+    });
 
-  const transporter = nodemailer.createTransport({
-    host,
-    port,
-    secure: port === 465,
-    auth: {
-      user,
-      pass,
-    },
-  });
+    const to = process.env.MAIL_TO || "";
+    const host = process.env.SMTP_HOST || "smtp.gmail.com";
+    const port = parseInt(process.env.SMTP_PORT || "587", 10);
+    const user = process.env.SMTP_USER || "";
+    const pass = process.env.SMTP_PASS || "";
 
-  const mailOptions = {
-    from: `"Kamala-Deville Website" <${user}>`,
-    to,
-    subject: `Contact form: ${name} (${email})`,
-    text: `Name: ${name}\nEmail: ${email}\n\nMessage:\n${message}`,
-    html: `
+    logger.info("Email configuration loaded", {
+      hasTo: !!to,
+      host,
+      port,
+      hasUser: !!user,
+      hasPass: !!pass,
+    });
+
+    if (!to || !user || !pass) {
+      logger.error("Email not configured. Set MAIL_TO, SMTP_USER in .env and run: firebase functions:secrets:set SMTP_PASS");
+      return null;
+    }
+
+    const transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure: port === 465,
+      auth: {
+        user,
+        pass,
+      },
+    });
+
+    try {
+      await transporter.verify();
+      logger.info("SMTP transporter verification succeeded");
+    } catch (verifyErr) {
+      logger.error("SMTP transporter verification FAILED", {
+        message: verifyErr.message,
+        stack: verifyErr.stack,
+      });
+      throw verifyErr;
+    }
+
+    const mailOptions = {
+      from: `"Kamala-Deville Website" <${user}>`,
+      to,
+      subject: `Contact form: ${name} (${email})`,
+      text: `Name: ${name}\nEmail: ${email}\n\nMessage:\n${message}`,
+      html: `
       <h2>New Contact Form Submission</h2>
       <p><strong>Name:</strong> ${escapeHtml(name)}</p>
       <p><strong>Email:</strong> <a href="mailto:${escapeHtml(email)}">${escapeHtml(email)}</a></p>
       <p><strong>Message:</strong></p>
       <p>${escapeHtml(message).replace(/\n/g, "<br>")}</p>
     `,
-  };
+    };
 
-  try {
-    await transporter.sendMail(mailOptions);
-    logger.info("Contact form email sent successfully");
-  } catch (err) {
-    logger.error("Failed to send contact email:", err);
-    throw err;
+    try {
+      logger.info("Attempting to send contact form email", {
+        to,
+        from: user,
+        subject: mailOptions.subject,
+      });
+      const info = await transporter.sendMail(mailOptions);
+      logger.info("Contact form email sent successfully", {
+        messageId: info.messageId,
+        accepted: info.accepted,
+        rejected: info.rejected,
+        response: info.response,
+      });
+    } catch (err) {
+      logger.error("Failed to send contact email", {
+        message: err.message,
+        stack: err.stack,
+        code: err.code,
+        command: err.command,
+      });
+      throw err;
+    }
+
+    return null;
   }
-
-  return null;
-});
+);
 
 function escapeHtml(text) {
   if (!text) return "";
